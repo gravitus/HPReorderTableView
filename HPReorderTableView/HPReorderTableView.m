@@ -32,6 +32,7 @@
 
 @implementation HPReorderTableView {
     UIImageView *_reorderDragView;
+    Boolean _dragging;
     __weak id<UITableViewDataSource> _realDataSource;
     NSIndexPath *_reorderInitialIndexPath;
     NSIndexPath *_reorderCurrentIndexPath;
@@ -40,13 +41,12 @@
     CGFloat _reorderDragViewShadowOpacity;
 }
 
-@dynamic delegate;
-
 static NSTimeInterval HPReorderTableViewAnimationDuration = 0.2;
 
 static NSString *HPReorderTableViewCellReuseIdentifier = @"HPReorderTableViewCellReuseIdentifier";
 
 @synthesize reorderDragView = _reorderDragView;
+@synthesize isDragging = _dragging;
 
 - (id)initWithCoder:(NSCoder *)aDecoder
 {
@@ -71,6 +71,7 @@ static NSString *HPReorderTableViewCellReuseIdentifier = @"HPReorderTableViewCel
     _reorderGestureRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(recognizeLongPressGestureRecognizer:)];
     [self addGestureRecognizer:_reorderGestureRecognizer];
     
+    _dragging = false;
     _reorderDragView = [[UIImageView alloc] init];
     _reorderDragView.layer.shadowColor = [UIColor blackColor].CGColor;
     _reorderDragView.layer.shadowRadius = 2;
@@ -89,6 +90,12 @@ static NSString *HPReorderTableViewCellReuseIdentifier = @"HPReorderTableViewCel
 {
     [self registerClass:cellClass forCellReuseIdentifier:HPReorderTableViewCellReuseIdentifier];
 }
+
+- (void)beginDragRowAt:(NSIndexPath*)indexPath {}
+
+- (void)configureTemporaryCell:(UITableViewCell*)cell {}
+- (void)willBeginDraggingCell:(UITableViewCell*)cell {}
+- (void)endDraggingCell {}
 
 #pragma mark - Actions
 
@@ -123,12 +130,20 @@ static NSString *HPReorderTableViewCellReuseIdentifier = @"HPReorderTableViewCel
     {
         UITableViewCell *cell = [self dequeueReusableCellWithIdentifier:HPReorderTableViewCellReuseIdentifier];
         cell.accessoryType = UITableViewCellAccessoryNone;
+        [self configureTemporaryCell:cell];
         return cell;
     }
     else
     {
         return [_realDataSource tableView:tableView cellForRowAtIndexPath:indexPath];
     }
+}
+
+-(NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
+    if ([_realDataSource respondsToSelector:@selector(numberOfSectionsInTableView:)]) {
+        return [_realDataSource numberOfSectionsInTableView:self];
+    }
+    return 1;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
@@ -226,7 +241,10 @@ static void HPGestureRecognizerCancel(UIGestureRecognizer *gestureRecognizer)
         return;
     }
     
+    [self beginDragRowAt:indexPath];
     UITableViewCell *cell = [self cellForRowAtIndexPath:indexPath];
+    _dragging = true;
+    [self willBeginDraggingCell:cell];
     [cell setSelected:NO animated:NO];
     [cell setHighlighted:NO animated:NO];
     
@@ -263,6 +281,9 @@ static void HPGestureRecognizerCancel(UIGestureRecognizer *gestureRecognizer)
         return;
     }
     
+    _dragging = false;
+    [self endDraggingCell];
+    
     NSIndexPath *indexPath = _reorderCurrentIndexPath;
     
     { // Reset
@@ -282,9 +303,6 @@ static void HPGestureRecognizerCancel(UIGestureRecognizer *gestureRecognizer)
                      } completion:^(BOOL finished) {
                          [self reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationNone];
                          [self performSelector:@selector(removeReorderDragView) withObject:nil afterDelay:0]; // Prevent flicker
-                         if ([self.delegate respondsToSelector:@selector(tableView: didEndReorderingRowAtIndexPath:)]) {
-                           [self.delegate tableView:self didEndReorderingRowAtIndexPath:indexPath];
-                         }
                      }];
 }
 
@@ -410,6 +428,7 @@ static void HPGestureRecognizerCancel(UIGestureRecognizer *gestureRecognizer)
 {
     const CGPoint location  = [gesture locationInView:self];
     NSIndexPath *toIndexPath = [self indexPathForRowAtPoint:location];
+    if (toIndexPath == NULL) { return; }
     
     if ([self.delegate respondsToSelector:@selector(tableView:targetIndexPathForMoveFromRowAtIndexPath:toProposedIndexPath:)])
     {
@@ -431,6 +450,12 @@ static void HPGestureRecognizerCancel(UIGestureRecognizer *gestureRecognizer)
 @end
 
 @implementation HPReorderAndSwipeToDeleteTableView
+- (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
+    if ([self.hp_realDataSource respondsToSelector:@selector(tableView:canEditRowAtIndexPath:)]) {
+        return [self.hp_realDataSource tableView:tableView canEditRowAtIndexPath:indexPath];
+    }
+    return NO;
+}
 
 -(void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath
 {

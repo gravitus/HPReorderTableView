@@ -19,20 +19,13 @@
 
 #import <UIKit/UIKit.h>
 
-@protocol HPReorderTableViewDelegate <UITableViewDelegate>
-@optional
-- (void)tableView:(UITableView *)tableView didEndReorderingRowAtIndexPath:(NSIndexPath *)indexPath;
-@end
-
 /**
  Table view with drag-and-drop reordering of cells.
  @discussion If you need the default swipe-to-delete functionality, use @c HPReorderAndSwipeToDeleteTableView instead.
  */
 @interface HPReorderTableView : UITableView
 
-@property (nonatomic, assign) id <HPReorderTableViewDelegate> delegate;
-
-/** Set enabled to NO to disable reordering functionality. You can also provide a UIGestureRecognizerDelegate and implement gestureRecognizerShouldBegin:. 
+/** Set enabled to NO to disable reordering functionality. You can also provide a UIGestureRecognizerDelegate and implement gestureRecognizerShouldBegin:.
  If you need to limit the area in which touches can trigger reordering, implement gestureRecognizer:shouldReceiveTouch:.
  */
 @property (nonatomic, readonly) UILongPressGestureRecognizer *reorderGestureRecognizer;
@@ -41,11 +34,16 @@
  To configure the appearence of the drag view (e.g., its shadow properties).
  */
 @property (nonatomic, readonly) UIView *reorderDragView;
+@property (nonatomic, readonly) Boolean isDragging;
 
 /**
  Provide your UITableViewCell subclass to set the appeareance of the temporary empty cell during dragging. An empty UITableViewCell is used by default, which leaves the empty space white.
  */
 - (void)registerTemporaryEmptyCellClass:(Class)cellClass;
+- (void)beginDragRowAt:(NSIndexPath*)indexPath;
+- (void)configureTemporaryCell:(UITableViewCell*)cell;
+- (void)willBeginDraggingCell:(UITableViewCell*)cell;
+- (void)endDraggingCell;
 
 @end
 
